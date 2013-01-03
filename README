@@ -1,0 +1,63 @@
+Description:
+
+    In small SOHO / SME environments, proper backup software is not
+    always available ("We don't need backups, we have RAID").
+
+    For these environments I use "dump" and "restore" as a first measure
+    until proper backups can be configured.
+
+    "dumphost.cron" is a simple script to dump all ext3/ext4 filesystems
+    to a network share. The same share (NFS, SMB) can be used by multiple
+    hosts; per-host subdirectories are automatically created.
+
+    Backups are taken daily. Full backups are created every Sunday
+    morning around 04:00. Supports "Incremental" / "Differential" backups.
+
+    Start of backup is randomly delayed (up to 1 hour) to prevent issues
+    in VM environments.
+
+    Dumps for each filesystem are compressed and written to:
+
+        ${DUMPDIR}/${HOSTNAME}/${DATE}-${LEVEL}-${fs_}.dump.gz
+
+    For example:
+        /mnt/nas/shared/server01/20120131-0-_.dump.gz
+        /mnt/nas/shared/server01/20120131-0-_boot.dump.gz
+
+
+Preparation:
+
+    Install the "dump" RPM (as root: yum install dump)
+
+
+Configuration settings in the script:
+
+    1) Change DUMPDIR to point to an NFS (or SMB) share on another server
+    or NAS where dumps should be stored. It must be writable by root.
+
+    2) Optional: change LEVEL to Select Incremental or Differential backup
+    scheme. Default is Differential (changes since last full backup)
+
+
+Usage: 
+
+    As root, copy the script to /etc/cron.daily/ (RedHat/CentOS).
+    Make sure it is executable (chmod 750 /etc/cron.daily/dumphost.cron)
+
+
+Restoring data:
+
+    Check 'man restore' for proper syntax. Simple test:
+
+        $ restore -lif /mnt/nas/shared/server01/20120131-0-_.dump.gz
+        Dump tape is compressed.
+        restore > ls
+        .:
+        bin/   etc/   lib/   lib64/ opt/   root/  sbin/  tmp/   usr/   var/
+        
+        restore > quit
+
+
+Author:  Ed Voncken
+Version: 20130103-001
+License: Public Domain

@@ -1,0 +1,61 @@
+#!/bin/sh
+
+# Destination directory for all filesystem dumps
+#
+DUMPDIR=/net/backupserver/path/to/backup/directory
+
+# Variables, automatic
+#
+DATE=$(/bin/date +%Y%m%d)
+DAYNUM=$(/bin/date +%w)
+HOSTNAME=$(/bin/hostname -s)
+
+# Random delay 0-3600 seconds to prevent thundering herd on VM environment
+#
+DELAY=$(($RANDOM%3600))
+
+# Local ext3/ext4 filesystems for dumping
+#
+FILESYSTEMS=$(mount |grep 'ext[34]' | awk '{print $3}')
+
+#
+# Determine dump level - uncomment your preferred scheme (Incremental / Differential)
+#
+
+# Incremental mode: use day number for incremental backups.
+# - Sunday = Level 0 (full dump), Monday = level 1, Tuesday = level 2 etc.
+# POS: Incremental backups are small, difference since previous incremental
+# NEG: Need to restore Full plus one or more Incrementals. Restore takes longer.
+#LEVEL=${DAYNUM}
+
+# Differential mode: Level 0 (full dump) on Sunday, Level 1 on other days
+# POS: Differential backups hold all changes since last Level 0. Restore is Full + single Diff.
+# NEG: Backups grow larger as week progresses. Restore benefits are huge though.
+LEVEL=$(( ${DAYNUM} > 0 ))
+
+
+if [ -d ${DUMPDIR} ];
+then
+  if [ ! -d ${DUMPDIR}/${HOSTNAME} ];
+  then
+    echo "Creating directory ${DUMPDIR}/${HOSTNAME}/..."
+    mkdir ${DUMPDIR}/${HOSTNAME} || exit 1
+  fi
+
+  # Delay start of backup
+  sleep ${DELAY}
+
+  for fs in ${FILESYSTEMS};
+  do
+    TIMESTAMP=$(/bin/date +%Y%m%d-%H%M%S)
+    echo "${TIMESTAMP} Creating level ${LEVEL} dump of filesystem ${fs} on ${HOSTNAME}..."
+    fs_=$(echo ${fs} | /usr/bin/tr '/' '_')
+    /sbin/dump -${LEVEL} -u -q -z -f ${DUMPDIR}/${HOSTNAME}/${DATE}-${LEVEL}-${fs_}.dump.gz ${fs}
+    TIMESTAMP=$(/bin/date +%Y%m%d-%H%M%S)
+    echo "${TIMESTAMP} Finished level ${LEVEL} dump of filesystem ${fs} on ${HOSTNAME}..."
+  done
+else
+  echo "ERROR: Directory ${DUMPDIR} not found."
+fi
+
+# EOF
